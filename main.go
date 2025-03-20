@@ -86,6 +86,21 @@ func parseFloat(s string) float64 {
 	return val
 }
 
+func SaveDanglingRecords(filename string, data [][]string) {
+	file, err := os.Create(filename)
+	if err != nil {
+		log.Fatalf("Error Creating file: %v", err)
+	}
+	defer file.Close()
+
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	for _, record := range data {
+		_ = writer.Write(record)
+	}
+}
+
 // Join datasets within 3km clustering
 func joinDatasets(csvData, excelData [][]string, csvLatCol, csvLonCol, excelLatCol, excelLonCol int) ([][]string, [][]string) {
 	var joined [][]string
@@ -112,6 +127,8 @@ func joinDatasets(csvData, excelData [][]string, csvLatCol, csvLonCol, excelLatC
 			dangling = append(dangling, csvRow)
 		}
 	}
+
+	fmt.Printf("DEBUG: Dangling records count in joinDatasets: %d\n", len(dangling)) // Debug print
 
 	return joined, dangling
 }
@@ -216,7 +233,26 @@ func main() {
 	fmt.Printf("Filtered Algeria Records in Excel: %d\n", len(algeriaExcel)-1)
 
 	// Join datasets
-	joinedData, _ := joinDatasets(algeriaCSV, algeriaExcel, csvLatIndex, csvLonIndex, excelLatIndex, excelLonIndex)
+	joinedData, danglingData := joinDatasets(algeriaCSV, algeriaExcel, csvLatIndex, csvLonIndex, excelLatIndex, excelLonIndex)
+
+	if len(danglingData) > 0 {
+		fmt.Println("Dangling records detected! Here are the first 5:")
+		for i := 0; i < len(danglingData) && i < 5; i++ {
+			fmt.Println(danglingData[i]) // Print first 5 records
+		}
+
+		fmt.Println("Saving dangling records to 'dangling_records.csv'...")
+		SaveDanglingRecords("dangling_records.csv", danglingData)
+
+		// Verify file creation
+		if _, err := os.Stat("dangling_records.csv"); err == nil {
+			fmt.Println(" File 'dangling_records.csv' successfully created!")
+		} else {
+			fmt.Printf(" Error: File not created: %v\n", err)
+		}
+	} else {
+		fmt.Println(" No dangling records found.")
+	}
 
 	// Print merge results
 	fmt.Printf("Joined Records (within 3km): %d\n", len(joinedData))
